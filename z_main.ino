@@ -143,10 +143,9 @@ void greetingByHands() {
       bWaveHandUp = false;
     }
 
-    
+    iLastHandWave = millis();
+  
   }
-
-  iLastHandWave = millis();
 }
 
 void stopGreetingByHands() {
@@ -165,9 +164,11 @@ void stopGreetingByHands() {
     else {
       bWaveHandDown = false;
     }
+
+    iLastHandWave = millis();
+
   }
 
-  iLastHandWave = millis();
 }
 
 void startHelloMode() {
