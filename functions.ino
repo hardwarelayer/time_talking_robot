@@ -36,7 +36,7 @@ void testBacklight() {
 void initRTCTime() {
   // Set the current date, and time in the following format:
   // seconds, minutes, hours, day of the week, day of the month, month, year
-  myRTC.setDS1302Time(30, 34, 22, 6, 15, 9, 2019); //Here you write your actual time/date as shown above 
+  myRTC.setDS1302Time(30, 26, 18, 0, 16, 9, 2019); //Here you write your actual time/date as shown above 
   //but remember to "comment/remove" this function once you're done
   //The setup is done only one time and the module will continue counting it automatically
 }

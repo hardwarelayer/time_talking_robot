@@ -1,4 +1,4 @@
-#define SIZE_OF_DURATIONS 217
+#define SIZE_OF_DURATIONS 219
 #define ADDITIONAL_TIME_FOR_MP3_HANDLING 200
 
 int baygiolaPos = 0;
@@ -6,6 +6,9 @@ int humidNowPos = 1;
 int helloPos = 2;
 int tempNowPos = 3;
 int beepPos = 216;
+int robotStartPos = 217;
+int robotStopPos = 218;
+
 int dayOfMonthAudioStartPos = 4;
 int tempAudioStartPos = 35;
 int minTempVal = 18;
@@ -237,6 +240,8 @@ int arDurations[SIZE_OF_DURATIONS] = {
     992, // 215, t7_fem.mp3
     992, // 216, t8_fem.mp3
     549, // 217 beep
+    1515, // 218 R2D2 start
+    522, // 219 R2D2 stop
 };
 
 int getDayOfMonthFileIndex(int dayVal) {
@@ -277,7 +282,7 @@ int getMinutesFileIndex(int minuteVal) {
 
 int getMonthFileIndex(int monthVal) {
   if (monthVal >= 1 && monthVal <= 12)
-    return monthAudioStartPos + monthVal;
+    return monthAudioStartPos + (monthVal - 1);
   return -1;
 }
 
@@ -408,7 +413,7 @@ int buildHelloAudioScript() {
   if (iFileIdx >= 0) {
     iDuration = getFileDuration(iFileIdx);
     if (iDuration >= 0) {
-      arScript[arIdx++] = (AudioItem) {iFileIdx+1, iDuration};
+      arScript[arIdx] = (AudioItem) {iFileIdx+1, iDuration};
       allDuration += iDuration;
     }
   }

@@ -18,7 +18,7 @@
 boolean bWaveHandUp = false;
 boolean bWaveHandDown = false;
 int iHandWaveStep = 0;
-unsigned long iHandWaveDuration = 2000;
+unsigned long iHandWaveDuration = 1000;
 unsigned long iLastHandWave = 0;
 
 boolean bHelloProcess = false;
@@ -43,19 +43,23 @@ boolean flgChangingState = false;
 
 
 void setup(){
-  initServos();
-  
+  //set time for module (onetime)
+//  initRTCTime();
+ 
   Serial.begin(9600);
   
   initDevices();
   initSpecialChars();
   testBacklight();
 
-  //set time for module (onetime)
-  //initRTCTime();
-
-  consoleTest();
   offFace();
+
+  delay(2000);
+  //init servo last to add a little ensure for power consumption of the LCD
+  initServos();
+  delay(2000);
+
+//  consoleTest();
 
 }
 
@@ -65,28 +69,21 @@ void initServos() {
   leftServo.attach(servoLeftPin);
   delay(1000);
 
-  rightServo.write(0);
-  delay(1000);
-  rightServo.write(20);
-  delay(1000);
-  rightServo.write(0);
-  delay(1000);
-  rightServo.write(90);
+  for (int i = 0; i <= 180; i+=30) {
+    rightServo.write(i);
+    delay(500);
+  }
   delay(1000);
   rightServo.write(0);
   delay(1000);
 
-  leftServo.write(0);
-  delay(1000);
-  leftServo.write(20);
-  delay(1000);
-  leftServo.write(0);
-  delay(1000);
-  leftServo.write(90);
+  for (int i = 0; i <= 180; i+=30) {
+    leftServo.write(i);
+    delay(500);
+  }
   delay(1000);
   leftServo.write(0);
   delay(1000);
-
 }
 
 void consoleTest() {
@@ -130,10 +127,10 @@ void greetingByHands() {
     Serial.println(iHandWaveStep);
     
     if (iHandWaveStep == 0) {
-      rightServo.write(90);
+      rightServo.write(180);
     }
     else if (iHandWaveStep == 1) {
-      leftServo.write(90);
+      leftServo.write(180);
     }
 
     if (iHandWaveStep < 1) {
@@ -188,6 +185,10 @@ void processHello() {
         iHelloStep++;
         steppingUp = true;
       }
+      else {
+        //first time
+        steppingUp = true;
+      }
     }
 
     lastHelloProcessStepUp = millis();
@@ -197,7 +198,8 @@ void processHello() {
     case HELLO_STEP_HEAD_ON:
       if (steppingUp) {
         //just enter, do once
-        currentWaitHelloProcess = 1000;       
+        soundRobotStart();
+        currentWaitHelloProcess = 1000;
       }
       digitalWrite(outputRGBLED, HIGH); //turn head on
       break;
@@ -238,7 +240,7 @@ void processHello() {
         iPlaySoundDelay = 0;
         lastPlaySoundCheck = 0; //first audio will be played immediately
 
-        setVolumeMP3(12);
+        setVolumeMP3(24);
 
       }
 
@@ -250,6 +252,8 @@ void processHello() {
     case HELLO_STEP_LCD_ON:
       if (steppingUp) {
         //just enter, do once
+        setVolumeMP3(12);
+
         lcd.backlight();
         i_cur_lcd_mode = 0;
         currentWaitHelloProcess = LCD_STEP_INTERVAL * LCD_MODE_COUNT;
@@ -279,14 +283,14 @@ void processHello() {
         iCurFaceStep = 0;
         flgShowFace = false;
         currentWaitHelloProcess = 2000;
+        offFace();
       }
-      offFace();
       break;
     case HELLO_STEP_HEAD_OFF:
       if (steppingUp) {
         //just enter, do once
         currentWaitHelloProcess = 2000;
-        soundBeep();
+        soundRobotStop();
       }
       digitalWrite(outputRGBLED, LOW);
       break;
@@ -299,10 +303,12 @@ void processHello() {
   }
 
   if (steppingUp) {
+    /*
     Serial.print("Step: ");
     Serial.print(iHelloStep);
     Serial.print("Step total duration: ");
     Serial.println(currentWaitHelloProcess);
+    */
     steppingUp = false;
   }
 
@@ -333,11 +339,30 @@ void stopHelloMode() {
 
 void soundBeep() {
   playTrackMP3(beepPos+1);
-  iPlaySoundDelay = 300;
+  iPlaySoundDelay = arDurations[beepPos];
   lastPlaySoundCheck = millis();
 }
 
+void soundRobotStart() {
+  playTrackMP3(robotStartPos+1);
+  iPlaySoundDelay = arDurations[robotStartPos];
+  lastPlaySoundCheck = millis();
+}
+
+void soundRobotStop() {
+  playTrackMP3(robotStopPos+1);
+  iPlaySoundDelay = arDurations[robotStopPos];
+  lastPlaySoundCheck = millis();
+}
+
+bool bPlayingSound = false;
 void audioPlayCurrentStep() {
+  if (!bPlaySound) return;
+
+  if (bPlayingSound) return;
+
+  bPlayingSound = true;
+  
   AudioItem aItem = arScript[iPlaySoundStep];
   playTrackMP3(aItem.fileIndex);
   iPlaySoundDelay = aItem.duration; //+100
@@ -349,6 +374,11 @@ void audioPlayCurrentStep() {
 void audioHandling() {
  
   if (millis() - lastPlaySoundCheck >= iPlaySoundDelay) {
+
+    bPlayingSound = false; //reset it
+
+    //Serial.print("playing step: ");
+    //Serial.println(iPlaySoundStep);
 
     audioPlayCurrentStep();
 
