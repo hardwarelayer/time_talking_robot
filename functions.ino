@@ -32,6 +32,40 @@ void testBacklight() {
   delay(150);
 }
 
+/*
+void consoleTest() {
+  myRTC.updateTime();
+  Serial.print("Thu:");
+  Serial.print(myRTC.dayofweek);
+  Serial.print("Ngay: ");
+  Serial.print(myRTC.dayofmonth); //You can switch between day and month if you're using American system
+  Serial.print("/");
+  Serial.print(myRTC.month);
+  Serial.print("/");
+  Serial.println(myRTC.year);
+
+  int iHour = myRTC.hours;
+  int iMinutes = myRTC.minutes;
+  Serial.print("Gio: ");
+  Serial.print(iHour);
+  Serial.print("Phut: ");
+  Serial.println(iMinutes);
+  
+  float h = dht.readHumidity();    //Đọc độ ẩm
+  float t = dht.readTemperature(); //Đọc nhiệt độ
+
+   // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t)) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+  }
+  else {
+    Serial.print("Do am:");
+    Serial.print(h);
+    Serial.print(" Nhiet do: ");
+    Serial.println(t);
+  }
+}
+
 //only onetime!!!
 void initRTCTime() {
   // Set the current date, and time in the following format:
@@ -40,20 +74,21 @@ void initRTCTime() {
   //but remember to "comment/remove" this function once you're done
   //The setup is done only one time and the module will continue counting it automatically
 }
+*/
 
 void welcomeMode() {
   lcd.clear();//Xóa màn hình
 
   lcd.setCursor(i_cur_x1, 0);
-  lcd.print(txtMsg1);
+  lcd.print(F("Hi, Ng"));
   lcd.write(byte(0));
-  lcd.print(txtMsg2);
+  lcd.print(F("c Trung"));
   lcd.write(byte(2));
 
   lcd.setCursor(i_cur_x2, 1);
-  lcd.print(txtMsg3);
+  lcd.print(F("Hi, B"));
   lcd.write(byte(1));
-  lcd.print(txtMsg4);
+  lcd.print(F(" Na"));
   lcd.write(byte(2));
 
   if (i_cur_x1 + 1 + i_1st_line_len < 17) {

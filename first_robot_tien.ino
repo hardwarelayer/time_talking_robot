@@ -29,3 +29,5 @@ the Arduino IDE may occasionally notify you that a new version of Arduino AVR Bo
 you'll need to refrain from updating back to the new Arduino AVR Boards version, 
 otherwise you'll be back to seeing the segmentation fault error again.
  */
+
+#include "PROGMEM_readAnything.h"

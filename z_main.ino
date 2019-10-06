@@ -15,11 +15,27 @@
 #define HELLO_STEP_HEAD_OFF 8
 #define HELLO_STEP_END 9
 
+#define ANNOUNCE_STEP_HEAD_ON 0
+#define ANNOUNCE_STEP_FACE_ON 1
+#define ANNOUNCE_STEP_SPEAK 2
+#define ANNOUNCE_STEP_LCD_ON 3
+#define ANNOUNCE_STEP_LCD_OFF 4
+#define ANNOUNCE_STEP_FACE_OFF 5
+#define ANNOUNCE_STEP_HEAD_OFF 6
+#define ANNOUNCE_STEP_END 7
+
+//de tranh viec xung nhieu sau khi ta ngung cap nguon cho qua trinh setup hoac announce
+//se anh huong toi PIR
+#define DELAY_AFTER_SETUP 70000
+#define DELAY_BETWEEN_ANNOUNCE_AND_HELLO 70000
+
 boolean bWaveHandUp = false;
 boolean bWaveHandDown = false;
 int iHandWaveStep = 0;
 unsigned long iHandWaveDuration = 1000;
 unsigned long iLastHandWave = 0;
+
+unsigned long iLastSetupTime = 0;
 
 boolean bHelloProcess = false;
 int iHelloStep = 0;
@@ -27,19 +43,30 @@ unsigned long lastHelloProcessStepUp = 0;
 unsigned long currentWaitHelloProcess = 0;
 unsigned long lastHelloProcessStop = 0;
 
+boolean bAnnounceProcess = false;
+int iAnnounceStep = 0;
+unsigned long lastAnnounceProcessStepUp = 0;
+unsigned long currentWaitAnnounceProcess = 0;
+unsigned long lastAnnounceProcessStop = 0;
+unsigned long iLastAnnounceTime = 0;
+
 unsigned long lastCommonStep = 0;
 unsigned long lastCommonClock = 0;
 unsigned long lastCommonFaceStep = 0;
+unsigned long lastHourCheck = 0;
+unsigned long lastPIRCheck = 0;
 unsigned long PIR_CHECK_INTERVAL = 100;
+unsigned long HOUR_CHECK_INTERVAL = 10000;
 unsigned long COMMON_CLOCK_INTERVAL = 600;
 unsigned long LCD_STEP_INTERVAL = 3000;
-int i_cur_lcd_mode = 0;
+int iCurrentLCDMode = 0;
 boolean bPlaySound = false;
 int iPlaySoundStep = 0;
 unsigned long lastPlaySoundCheck = 0;
-int iPlaySoundDelay = 0;
+unsigned long iPlaySoundDelay = 0;
 
-boolean flgChangingState = false;
+boolean flgChangingToHelloState = false;
+boolean flgChangingToAnnounceState = false;
 
 
 void setup(){
@@ -61,76 +88,48 @@ void setup(){
 
 //  consoleTest();
 
+  iLastSetupTime = millis();
 }
 
 void initServos() {
   rightServo.attach(servoRightPin);
   delay(1000);
+  rightServo.write(180);
+
+  /*
   leftServo.attach(servoLeftPin);
   delay(1000);
+  leftServo.write(180);
+  */
 
-  for (int i = 0; i <= 180; i+=30) {
+  for (int i = 0; i <= 180; i+=40) {
     rightServo.write(i);
     delay(500);
   }
   delay(1000);
   rightServo.write(0);
   delay(1000);
-
-  for (int i = 0; i <= 180; i+=30) {
-    leftServo.write(i);
-    delay(500);
-  }
+ 
+/*
+  leftServo.write(180);
   delay(1000);
   leftServo.write(0);
   delay(1000);
-}
-
-void consoleTest() {
-  myRTC.updateTime();
-  Serial.print("Thu:");
-  Serial.print(myRTC.dayofweek);
-  Serial.print("Ngay: ");
-  Serial.print(myRTC.dayofmonth); //You can switch between day and month if you're using American system
-  Serial.print("/");
-  Serial.print(myRTC.month);
-  Serial.print("/");
-  Serial.println(myRTC.year);
-
-  int iHour = myRTC.hours;
-  int iMinutes = myRTC.minutes;
-  Serial.print("Gio: ");
-  Serial.print(iHour);
-  Serial.print("Phut: ");
-  Serial.println(iMinutes);
-  
-  float h = dht.readHumidity();    //Đọc độ ẩm
-  float t = dht.readTemperature(); //Đọc nhiệt độ
-
-   // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(t)) {
-    Serial.println(F("Failed to read from DHT sensor!"));
-  }
-  else {
-    Serial.print("Do am:");
-    Serial.print(h);
-    Serial.print(" Nhiet do: ");
-    Serial.println(t);
-  }
+  */
 }
 
 void greetingByHands() {
 
   if (millis() - iLastHandWave > iHandWaveDuration) {
 
-    Serial.print("step:");
-    Serial.println(iHandWaveStep);
+    //Serial.print(F("step:"));
+    //Serial.println(iHandWaveStep);
     
     if (iHandWaveStep == 0) {
       rightServo.write(180);
     }
     else if (iHandWaveStep == 1) {
-      leftServo.write(180);
+      //leftServo.write(180);
     }
 
     if (iHandWaveStep < 1) {
@@ -152,7 +151,7 @@ void stopGreetingByHands() {
       rightServo.write(0);
     }
     else if (iHandWaveStep == 1) {
-      leftServo.write(0);
+      //leftServo.write(0);
     }
 
     if (iHandWaveStep < 1) {
@@ -168,8 +167,156 @@ void stopGreetingByHands() {
 
 }
 
+void startAnnouncingMode() {
+  Serial.println(F("Starting announcing"));
+  bAnnounceProcess = true;
+  iAnnounceStep = HELLO_STEP_HEAD_ON;
+  lastAnnounceProcessStepUp = 0; //needed  for processHello to detect first run
+
+  flgChangingToAnnounceState = false;
+}
+
+void processAnnounce() {
+
+  boolean steppingUp = false;
+  
+  if (millis() - lastAnnounceProcessStepUp > currentWaitAnnounceProcess) {
+    if (iAnnounceStep < ANNOUNCE_STEP_END) {
+      if (lastAnnounceProcessStepUp > 0) {
+        iAnnounceStep++;
+        steppingUp = true;
+      }
+      else {
+        //first time
+        steppingUp = true;
+      }
+    }
+
+    lastAnnounceProcessStepUp = millis();
+  }
+
+  switch (iAnnounceStep) {
+    case ANNOUNCE_STEP_HEAD_ON:
+      if (steppingUp) {
+        //just enter, do once
+        currentWaitAnnounceProcess = 1000;
+      }
+      digitalWrite(outputRGBLED, HIGH); //turn head on
+      break;
+    case ANNOUNCE_STEP_FACE_ON:
+      if (steppingUp) {
+        //just enter, do once
+        flgShowFace = true;
+        iCurFaceStep = 0;
+        lastCommonFaceStep = 0;
+        currentWaitAnnounceProcess = 1000;
+      }
+      break;
+    case ANNOUNCE_STEP_SPEAK:
+      bWaveHandUp = false;
+      if (steppingUp) {
+        //just enter, do once
+        unsigned long iTotalDuration = buildAnnounceAudioScript();
+        Serial.print(F("playing with total duration:")); Serial.println(iTotalDuration);
+        
+        //Khi lam viec voi chip
+        //do tong thoi gian phat MP3 co the bi keo dai vi cach su dung millis() compare
+        //la khong the chinh xac hoan toan duoc do cac thao tac I/O
+        //nen luon phai du tru thoi gian cho viec keo dai nay
+        //Mac du, doi voi DFPlayer ta co the dung pin BUSY de check viec phat MP3 xong chua, 
+        //tuy nhien cung khong hoan toan chinh xac.
+        currentWaitAnnounceProcess = iTotalDuration * 1.1;
+
+        bPlaySound = true;
+        iPlaySoundStep = 0;
+        iPlaySoundDelay = 0;
+        lastPlaySoundCheck = 0; //first audio will be played immediately
+
+        setVolumeMP3(23);
+
+      }
+
+      if (bPlaySound) {
+        audioHandling();
+      }
+
+      break;
+    case ANNOUNCE_STEP_LCD_ON:
+      if (steppingUp) {
+        //just enter, do once
+        setVolumeMP3(12);
+
+        lcd.backlight();
+        iCurrentLCDMode = 0;
+        currentWaitAnnounceProcess = LCD_STEP_INTERVAL * LCD_MODE_COUNT;
+      }
+      break;
+    case ANNOUNCE_STEP_LCD_OFF:
+      if (steppingUp) {
+        //just enter, do once
+        lcd.noBacklight();
+        currentWaitAnnounceProcess = 1000;
+      }
+      break;
+    case ANNOUNCE_STEP_FACE_OFF:
+      bWaveHandDown = false;
+      if (steppingUp) {
+        //just enter, do once
+        iCurFaceStep = 0;
+        flgShowFace = false;
+        currentWaitAnnounceProcess = 2000;
+        offFace();
+      }
+      break;
+    case ANNOUNCE_STEP_HEAD_OFF:
+      if (steppingUp) {
+        //just enter, do once
+        currentWaitAnnounceProcess = 2000;
+        soundRobotStop();
+      }
+      digitalWrite(outputRGBLED, LOW);
+      break;
+    case ANNOUNCE_STEP_END:
+      if (steppingUp) {
+        //just enter, do once
+        stopAnnounceMode();
+      }
+      break;
+  }
+
+  if (steppingUp) {
+    /*
+    Serial.print(F("Step: "));
+    Serial.print(iAnnounceStep);
+    Serial.print(F("Step total duration: "));
+    Serial.println(currentWaitAnnounceProcess);
+    */
+    steppingUp = false;
+  }
+
+  if (bAnnounceProcess) {
+    visualHandling();
+  }
+
+}
+
+void stopAnnounceMode() {
+  Serial.println(F("Stopping announce"));
+  
+  bAnnounceProcess = false;
+  iAnnounceStep = ANNOUNCE_STEP_END;
+  lastAnnounceProcessStepUp = 0;
+
+  offFace();
+  
+  flgChangingToAnnounceState = false;
+  lastAnnounceProcessStop = millis();
+
+  iLastAnnounceTime = millis();
+}
+
 void startHelloMode() {
-  Serial.println("Starting hello");
+  Serial.println(F("Starting hello"));
   bHelloProcess = true;
   iHelloStep = HELLO_STEP_HEAD_ON;
   lastHelloProcessStepUp = 0; //needed  for processHello to detect first run
@@ -255,7 +402,7 @@ void processHello() {
         setVolumeMP3(12);
 
         lcd.backlight();
-        i_cur_lcd_mode = 0;
+        iCurrentLCDMode = 0;
         currentWaitHelloProcess = LCD_STEP_INTERVAL * LCD_MODE_COUNT;
       }
       break;
@@ -304,9 +451,9 @@ void processHello() {
 
   if (steppingUp) {
     /*
-    Serial.print("Step: ");
+    Serial.print(F("Step: "));
     Serial.print(iHelloStep);
-    Serial.print("Step total duration: ");
+    Serial.print(F("Step total duration: "));
     Serial.println(currentWaitHelloProcess);
     */
     steppingUp = false;
@@ -326,7 +473,7 @@ void processHello() {
 }
 
 void stopHelloMode() {
-  Serial.println("Stopping hello");
+  Serial.println(F("Stopping hello"));
   
   bHelloProcess = false;
   iHelloStep = HELLO_STEP_END;
@@ -339,57 +486,67 @@ void stopHelloMode() {
 
 void soundBeep() {
   playTrackMP3(beepPos+1);
-  iPlaySoundDelay = arDurations[beepPos];
+  iPlaySoundDelay = getFileDuration(beepPos);
   lastPlaySoundCheck = millis();
 }
 
 void soundRobotStart() {
   playTrackMP3(robotStartPos+1);
-  iPlaySoundDelay = arDurations[robotStartPos];
+  iPlaySoundDelay = getFileDuration(robotStartPos);
   lastPlaySoundCheck = millis();
 }
 
 void soundRobotStop() {
   playTrackMP3(robotStopPos+1);
-  iPlaySoundDelay = arDurations[robotStopPos];
+  iPlaySoundDelay = getFileDuration(robotStopPos);
   lastPlaySoundCheck = millis();
 }
 
 bool bPlayingSound = false;
 void audioPlayCurrentStep() {
+  
   if (!bPlaySound) return;
 
   if (bPlayingSound) return;
 
   bPlayingSound = true;
-  
+
   AudioItem aItem = arScript[iPlaySoundStep];
+  Serial.print(F("playing file:"));Serial.print(aItem.fileIndex);Serial.print(F(" duration:"));Serial.println(aItem.duration);
+    
   playTrackMP3(aItem.fileIndex);
   iPlaySoundDelay = aItem.duration; //+100
                                     //neu cong them thoi gian o day thi thoi gian tong se bi lech dan toi
                                     //chua phat xong thi processHello da skip step roi
                                     //neu cong thi cong o ben buildScript
+  lastPlaySoundCheck = millis();
 }
 
 void audioHandling() {
- 
-  if (millis() - lastPlaySoundCheck >= iPlaySoundDelay) {
+
+  unsigned long ulMillis = millis();
+  unsigned long ulTimePassed = ulMillis - lastPlaySoundCheck;
+  if (ulTimePassed >= iPlaySoundDelay) {
+    Serial.print(F("audioHandling: "));Serial.print(ulMillis);Serial.print(F("-"));Serial.print(lastPlaySoundCheck);Serial.print(F("="));Serial.println(ulTimePassed);
 
     bPlayingSound = false; //reset it
 
-    //Serial.print("playing step: ");
-    //Serial.println(iPlaySoundStep);
+    Serial.print(F("playing step: ")); Serial.println(iPlaySoundStep);
+    if (iPlaySoundStep == iScriptLen && bAnnounceProcess) {
+      //Serial.println(F("setting volume down for music in announce"));
+      setVolumeMP3(15);
+      delay(100);
+    }
 
     audioPlayCurrentStep();
 
     if (iPlaySoundStep < iScriptLen) {
-      lastPlaySoundCheck = millis();
       
       iPlaySoundStep++;
 
     }
     else {
-      Serial.println("play music");
+      //Serial.println(F("end of last sound"));
       //setVolumeMP3(12);
       //playTrackMP3(6);
       bPlaySound = false;
@@ -411,12 +568,12 @@ void visualHandling() {
 
   if (millis() - lastCommonStep >= LCD_STEP_INTERVAL) {
 
-    if (i_cur_lcd_mode < 3) {
-      i_cur_lcd_mode++;
+    if (iCurrentLCDMode < 3) {
+      iCurrentLCDMode++;
       lcd.clear();//Xóa màn hình truoc moi mode
     }
     else {
-      i_cur_lcd_mode = 0;
+      iCurrentLCDMode = 0;
     }
 
     lastCommonStep = millis();
@@ -425,7 +582,7 @@ void visualHandling() {
 
   if (millis() - lastCommonClock >= COMMON_CLOCK_INTERVAL) {
  
-    switch(i_cur_lcd_mode) {
+    switch(iCurrentLCDMode) {
       case LCD_MODE_WELCOME:
         welcomeMode();
         break;
@@ -445,44 +602,118 @@ void visualHandling() {
 
 }
 
+int iLastHour = 0;
+int iLastMinute = 0;
+
+bool isHourJustChange() {
+  bool flgRes = false;
+  
+  myRTC.updateTime(); 
+  int i_hour = myRTC.hours;
+  int i_minutes = myRTC.minutes;
+
+  //debug
+  //Serial.print(F("check min "));
+  //Serial.println(i_minutes);
+  //i_hour = i_minutes;
+
+  //reset to 0 when value move from 59->0
+  if (i_minutes < iLastMinute) {
+    iLastMinute = i_minutes;
+  }
+  //reset to 0 when value move from 23->0
+  if (i_hour < iLastHour) {
+    iLastHour = i_hour;
+  }
+
+  if (
+      (i_hour != iLastHour) &&
+      (i_hour >= 6 && i_hour <= 22) &&
+      (!flgChangingToAnnounceState && !bAnnounceProcess)
+     )
+  {
+    
+    iLastHour = i_hour;
+    flgRes = true;
+  }
+
+  if (!flgRes) {
+    //only notify minute change
+    if (i_minutes > iLastMinute) {
+//      soundBeep();
+      iLastMinute = i_minutes;
+    }
+  }
+  else {
+    Serial.print(F("isHourJustChange is true"));
+  }
+  return flgRes;
+}
+
 void loop()
 {
   int iCurMillis = millis();
-  
-  if (millis() - lastCommonStep >= PIR_CHECK_INTERVAL) {
 
+  if (millis() - lastHourCheck >= HOUR_CHECK_INTERVAL) {
+    if (!bAnnounceProcess && !bHelloProcess && isHourJustChange()) {
+      Serial.println(F("change hour"));
+      flgChangingToAnnounceState = true;
+      startAnnouncingMode();
+      iLastAnnounceTime = millis();
+    }
+    lastHourCheck = millis();
+  }
+
+  if (
+      (!flgChangingToAnnounceState && !bAnnounceProcess) && 
+      (millis() - lastPIRCheck >= PIR_CHECK_INTERVAL)
+     )
+    {
+     
       processPIR();
 
-      if (pirState == HIGH && !bHelloProcess) {
+      if (pirState == HIGH && 
+        !bHelloProcess && 
+        (millis() - iLastAnnounceTime > DELAY_BETWEEN_ANNOUNCE_AND_HELLO) &&
+        (millis() - iLastSetupTime > DELAY_AFTER_SETUP)
+        )
+      {
 
         if ((lastHelloProcessStop > 0) && (millis() - lastHelloProcessStop < 120000)) {
           //vi servo co the lam nhieu PIR
           //nen ta bat buoc phai doi khoang 2 phut truoc khi xu ly tin hieu PIR tiep
           //neu trong thoi gian cho doi nay, ta nhan duoc tin hieu LOW thi reset lastHelloProcessStop
-          //Serial.println("Skipping PIR signal");
+          //Serial.println(F("Skipping PIR signal"));
           return;
         }
 
-        if (!flgChangingState) {
+        if (!flgChangingToHelloState) {
           //switch state from off to on, just do it one time in HIGH state
           startHelloMode();
-          flgChangingState = true;
+          flgChangingToHelloState = true;
         }
         
         //doing smt else each PIR_CHECK_INTERVAL
       }
       else {
-        if (flgChangingState) {
+        if (flgChangingToHelloState) {
           //reset variables once to off mode
-          flgChangingState = false;
+          flgChangingToHelloState = false;
         }
         //reset this to allow new PIR status
         lastHelloProcessStop = 0;
+
       }
+
+      lastPIRCheck = millis();
+
   }
 
   if (bHelloProcess) {
     processHello();
   }
- 
+
+  if (bAnnounceProcess) {
+    processAnnounce();
+  }
 }

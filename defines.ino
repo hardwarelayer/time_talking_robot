@@ -56,23 +56,19 @@ byte degree[8] = {
   0B00000
 };
 
-int i_cur_x1 = 0;
-int i_cur_x2 = 0;
-String txtMsg1 = "Hi, Ng";
-String txtMsg2 = "c Trung";
-int i_1st_line_len = txtMsg1.length() + 1 + txtMsg2.length() + 1;
-String txtMsg3 = "Hi, B";
-String txtMsg4 = " Na";
-int i_2nd_line_len = txtMsg3.length() + 1 + txtMsg4.length() + 1;
+byte i_cur_x1 = 0;
+byte i_cur_x2 = 0;
+byte i_1st_line_len = 6 + 1 + 7 + 1;
+byte i_2nd_line_len = 5 + 1 + 3 + 1;
 
 
-int inputPinPIR = 5;       //Chân tín hiệu cảm biến PIR
+byte inputPinPIR = 5;       //Chân tín hiệu cảm biến PIR
 int pirState = LOW;     //Bắt đầu với không có báo động
 boolean flgFirstPIRSignal = false;
 
-int outputRGBLED = 13;
-int servoRightPin = 17; //A3
-int servoLeftPin = 14; //A0
+byte outputRGBLED = 13;
+byte servoRightPin = 17; //A3
+byte servoLeftPin = 14; //A0
 
 Servo rightServo;
-Servo leftServo;
+//Servo leftServo;
