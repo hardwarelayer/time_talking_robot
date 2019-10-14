@@ -555,12 +555,12 @@ unsigned long buildAnnounceAudioScript() {
   //music
   if (dayOfMonth % 2 == 0) {
     //ngay chan, TC start from 0
-    tcMusicIndex = hour;
+    tcMusicIndex = hour - minHourVal24;
   }
   else {
     //ngay le
-    //TC start from 15
-    tcMusicIndex = 15+hour;
+    //TC start from 16
+    tcMusicIndex = (hour+16)-minHourVal24;
   }
   
   int iSelectedMusic = tcMusicIndex + tcMusicStartPos;

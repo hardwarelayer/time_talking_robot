@@ -43,6 +43,7 @@ unsigned long lastHelloProcessStepUp = 0;
 unsigned long currentWaitHelloProcess = 0;
 unsigned long lastHelloProcessStop = 0;
 
+byte bSkipFirstAnnounce = false;
 boolean bAnnounceProcess = false;
 int iAnnounceStep = 0;
 unsigned long lastAnnounceProcessStepUp = 0;
@@ -68,6 +69,9 @@ unsigned long iPlaySoundDelay = 0;
 boolean flgChangingToHelloState = false;
 boolean flgChangingToAnnounceState = false;
 
+unsigned long iLastPIRHighTime = 0;
+#define PIR_DELAY_BEFORE_REPEAT_HELLO 600000
+#define PIR_DELAY_BETWEEN_BEEP 60000
 
 void setup(){
   //set time for module (onetime)
@@ -93,14 +97,11 @@ void setup(){
 
 void initServos() {
   rightServo.attach(servoRightPin);
+//  leftServo.attach(servoLeftPin);
   delay(1000);
-  rightServo.write(180);
 
-  /*
-  leftServo.attach(servoLeftPin);
-  delay(1000);
-  leftServo.write(180);
-  */
+  rightServo.write(180);
+//  leftServo.write(180);
 
   for (int i = 0; i <= 180; i+=40) {
     rightServo.write(i);
@@ -108,14 +109,9 @@ void initServos() {
   }
   delay(1000);
   rightServo.write(0);
+//  leftServo.write(0);
   delay(1000);
  
-/*
-  leftServo.write(180);
-  delay(1000);
-  leftServo.write(0);
-  delay(1000);
-  */
 }
 
 void greetingByHands() {
@@ -129,7 +125,7 @@ void greetingByHands() {
       rightServo.write(180);
     }
     else if (iHandWaveStep == 1) {
-      //leftServo.write(180);
+//      leftServo.write(180);
     }
 
     if (iHandWaveStep < 1) {
@@ -534,7 +530,7 @@ void audioHandling() {
     Serial.print(F("playing step: ")); Serial.println(iPlaySoundStep);
     if (iPlaySoundStep == iScriptLen && bAnnounceProcess) {
       //Serial.println(F("setting volume down for music in announce"));
-      setVolumeMP3(15);
+      setVolumeMP3(17);
       delay(100);
     }
 
@@ -656,6 +652,10 @@ void loop()
 
   if (millis() - lastHourCheck >= HOUR_CHECK_INTERVAL) {
     if (!bAnnounceProcess && !bHelloProcess && isHourJustChange()) {
+      if (!bSkipFirstAnnounce) {
+        bSkipFirstAnnounce = true;
+        return;
+      }
       Serial.println(F("change hour"));
       flgChangingToAnnounceState = true;
       startAnnouncingMode();
@@ -679,18 +679,39 @@ void loop()
         )
       {
 
-        if ((lastHelloProcessStop > 0) && (millis() - lastHelloProcessStop < 120000)) {
-          //vi servo co the lam nhieu PIR
-          //nen ta bat buoc phai doi khoang 2 phut truoc khi xu ly tin hieu PIR tiep
-          //neu trong thoi gian cho doi nay, ta nhan duoc tin hieu LOW thi reset lastHelloProcessStop
-          //Serial.println(F("Skipping PIR signal"));
-          return;
+        if (lastHelloProcessStop > 0) {
+          if (millis() - lastHelloProcessStop < 120000) {
+            //vi dong cua servo co the lam nhieu tin hieu cua PIR
+            //nen ta bat buoc phai doi khoang 2 phut truoc khi xu ly tin hieu PIR tiep
+            //neu trong thoi gian cho doi nay, ta nhan duoc tin hieu LOW thi reset lastHelloProcessStop
+            //Serial.println(F("Skipping PIR signal"));
+            return;
+          }
         }
 
         if (!flgChangingToHelloState) {
           //switch state from off to on, just do it one time in HIGH state
-          startHelloMode();
-          flgChangingToHelloState = true;
+          //no hello, no announce
+          if (
+            (millis() - lastHelloProcessStop < PIR_DELAY_BEFORE_REPEAT_HELLO)
+            )
+          {
+            if (millis() - iLastPIRHighTime > PIR_DELAY_BETWEEN_BEEP) {
+              //soundBeep();
+              rightServo.write(180);
+              //leftServo.write(30);
+              delay(getFileDuration(beepPos));
+              rightServo.write(0);
+              //leftServo.write(0);
+
+              iLastPIRHighTime = millis();
+            }
+          }
+          else {
+            startHelloMode();
+            flgChangingToHelloState = true;
+          }
+
         }
         
         //doing smt else each PIR_CHECK_INTERVAL
@@ -701,7 +722,7 @@ void loop()
           flgChangingToHelloState = false;
         }
         //reset this to allow new PIR status
-        lastHelloProcessStop = 0;
+        //lastHelloProcessStop = 0;
 
       }
 
@@ -712,8 +733,8 @@ void loop()
   if (bHelloProcess) {
     processHello();
   }
-
-  if (bAnnounceProcess) {
+  else if (bAnnounceProcess) {
     processAnnounce();
   }
+
 }
